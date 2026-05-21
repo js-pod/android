@@ -1,0 +1,32 @@
+{
+  "name": "solid-pod-android",
+  "version": "0.0.1",
+  "private": true,
+  "description": "A Solid pod (jspod + JSS) as an installable Android app. React Native shell + nodejs-mobile runtime + an embedded Node server.",
+  "scripts": {
+    "android": "react-native run-android",
+    "start": "react-native start",
+    "lint": "eslint .",
+    "prepare-node-assets": "cd nodejs-assets/nodejs-project && npm install --omit=dev"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-native": "0.76.5",
+    "nodejs-mobile-react-native": "^18.20.4"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.0",
+    "@babel/preset-env": "^7.25.0",
+    "@babel/runtime": "^7.25.0",
+    "@react-native/babel-preset": "0.76.5",
+    "@react-native/eslint-config": "0.76.5",
+    "@react-native/metro-config": "0.76.5",
+    "@react-native/typescript-config": "0.76.5",
+    "@types/react": "^18.2.6",
+    "typescript": "5.0.4"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "AGPL-3.0-only"
+}

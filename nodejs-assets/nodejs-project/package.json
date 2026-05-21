@@ -1,0 +1,12 @@
+{
+  "name": "solid-pod-android-node",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "main.js",
+  "description": "The Node-side payload that runs inside nodejs-mobile. Boots a JSS pod and (on first run) installs the default bundle. Mirrors what `npx jspod` does on desktop.",
+  "dependencies": {
+    "jspod": "^0.0.42"
+  },
+  "license": "AGPL-3.0-only"
+}

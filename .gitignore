@@ -1,0 +1,25 @@
+node_modules/
+nodejs-assets/nodejs-project/node_modules/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/captures/
+android/.idea/
+android/*.iml
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+npm-debug.log*
+yarn-error.log
