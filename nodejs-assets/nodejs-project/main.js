@@ -7,6 +7,28 @@ import { fileURLToPath } from 'url'
 import { dirname } from 'path'
 const rn_bridge = createRequire(import.meta.url)('rn-bridge')
 
+// nodejs-mobile is built without ICU, so Intl is undefined. oidc-provider
+// (and other deps) reference Intl.ListFormat at module load time, which
+// crashes the whole bundle. Stub the surface area we actually need.
+if (typeof globalThis.Intl === 'undefined') {
+  globalThis.Intl = {
+    ListFormat: class {
+      constructor(_locale, opts) { this.type = (opts && opts.type) || 'conjunction' }
+      format(iter) {
+        const arr = Array.from(iter)
+        if (arr.length === 0) return ''
+        if (arr.length === 1) return String(arr[0])
+        if (arr.length === 2) {
+          const conj = this.type === 'disjunction' ? 'or' : 'and'
+          return arr[0] + ' ' + conj + ' ' + arr[1]
+        }
+        const conj = this.type === 'disjunction' ? 'or' : 'and'
+        return arr.slice(0, -1).join(', ') + ', ' + conj + ' ' + arr[arr.length - 1]
+      }
+    },
+  }
+}
+
 const PORT = parseInt(process.env.JSPOD_PORT || '5444', 10)
 const HOST = process.env.JSPOD_HOST || 'localhost'
 
