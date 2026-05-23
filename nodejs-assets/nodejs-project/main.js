@@ -11,38 +11,44 @@ import { fileURLToPath } from 'url'
 import { dirname } from 'path'
 const rn_bridge = createRequire(import.meta.url)('rn-bridge')
 
-// nodejs-mobile starts with CWD='/' which is read-only on Android. jspod
-// creates ./pod-data relative to CWD, so move to the writable extracted
-// project dir before booting.
-process.chdir(dirname(fileURLToPath(import.meta.url)))
-
-// Tell jspod not to try to open a browser — there's no `xdg-open` here, and
-// the RN UI handles opening the system browser via Intent.
-process.env.JSPOD_NO_OPEN = '1'
-
 // Default port. The RN UI reads this and displays it.
 const PORT = process.env.JSPOD_PORT || '5444'
 process.env.JSPOD_PORT = PORT
 
-rn_bridge.channel.send(JSON.stringify({ type: 'status', message: 'starting pod...' }))
+function send(obj) {
+  try { rn_bridge.channel.send(JSON.stringify(obj)) } catch {}
+}
+
+process.on('uncaughtException', (err) => {
+  send({ type: 'error', message: 'uncaught: ' + String(err && err.stack || err) })
+})
+process.on('unhandledRejection', (reason) => {
+  send({ type: 'error', message: 'unhandled rejection: ' + String(reason && reason.stack || reason) })
+})
 
 try {
+  // nodejs-mobile starts with CWD='/' (read-only). jspod creates ./pod-data
+  // relative to CWD, so move to the writable extracted project dir.
+  const projectDir = dirname(fileURLToPath(import.meta.url))
+  send({ type: 'status', message: 'chdir ' + projectDir })
+  process.chdir(projectDir)
+
+  process.env.JSPOD_NO_OPEN = '1'
+  send({ type: 'status', message: 'starting pod (cwd=' + process.cwd() + ')' })
+
   // Construct argv as if `npx jspod --port 5444 --no-open` was invoked.
   process.argv = [process.argv[0] || 'node', 'jspod', '--port', PORT, '--no-open']
 
   // Dynamic import so we can catch failure at boot. jspod is ESM.
   await import('jspod')
 
-  rn_bridge.channel.send(JSON.stringify({
+  send({
     type: 'ready',
     port: PORT,
     url: `http://localhost:${PORT}/`
-  }))
+  })
 } catch (err) {
-  rn_bridge.channel.send(JSON.stringify({
-    type: 'error',
-    message: String(err && err.stack || err)
-  }))
+  send({ type: 'error', message: String(err && err.stack || err) })
 }
 
 // Optional: listen for control messages from RN (stop, status check, etc.)
