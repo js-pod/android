@@ -5,7 +5,14 @@
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
+import { webcrypto } from 'crypto'
 const rn_bridge = createRequire(import.meta.url)('rn-bridge')
+
+// nodejs-mobile doesn't expose globalThis.crypto (Web Crypto API).
+// jose uses it for key generation. Wire it up from node:crypto.
+if (typeof globalThis.crypto === 'undefined') {
+  globalThis.crypto = webcrypto
+}
 
 // nodejs-mobile is built without ICU, so Intl is undefined. oidc-provider
 // (and other deps) reference Intl.ListFormat at module load time, which
