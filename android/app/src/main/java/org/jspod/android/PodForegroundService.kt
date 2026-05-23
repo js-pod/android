@@ -6,9 +6,11 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 
 class PodForegroundService : Service() {
 
@@ -25,13 +27,17 @@ class PodForegroundService : Service() {
 
         val notif = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Solid Pod is running")
-            .setContentText("http://localhost:5444/")
+            .setContentText("Tap to open")
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentIntent(pending)
             .setOngoing(true)
             .build()
 
-        startForeground(NOTIFICATION_ID, notif)
+        val serviceType =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            else 0
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, notif, serviceType)
         return START_STICKY
     }
 

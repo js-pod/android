@@ -1,5 +1,7 @@
 package org.jspod.android
 
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -15,7 +17,13 @@ class MainActivity : ReactActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // PodForegroundService disabled for now — Android 15 restricts the
-        // dataSync FGS type. Revisit with specialUse once the rest works.
+        // Keep the embedded Node/JSS process alive when the user switches
+        // to a browser. specialUse FGS (not dataSync, which Android 15 kills).
+        val intent = Intent(this, PodForegroundService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
     }
 }
