@@ -45,9 +45,15 @@ export default function App() {
     }
   }, [])
 
-  const openInBrowser = () => {
-    if (state.kind === 'ready') {
-      Linking.openURL(state.url)
+  const [openError, setOpenError] = useState<string | null>(null)
+
+  const openInBrowser = async () => {
+    if (state.kind !== 'ready') return
+    setOpenError(null)
+    try {
+      await Linking.openURL(state.url)
+    } catch (e) {
+      setOpenError(`Couldn't open a browser. Visit ${state.url} manually.`)
     }
   }
 
@@ -81,6 +87,7 @@ export default function App() {
               Sign in as <Text style={styles.mono}>me</Text> /{' '}
               <Text style={styles.mono}>me</Text>. Localhost-only.
             </Text>
+            {openError && <Text style={styles.openError}>{openError}</Text>}
           </>
         )}
 
@@ -111,6 +118,7 @@ const styles = StyleSheet.create({
   buttonPressed: { opacity: 0.85 },
   buttonText: { color: '#0b0d12', fontWeight: '700', fontSize: 16 },
   foot: { color: '#6b7280', fontSize: 12, marginTop: 32, textAlign: 'center' },
+  openError: { color: '#f87171', fontSize: 13, marginTop: 16, textAlign: 'center' },
   mono: { fontFamily: 'monospace', color: '#a8b0c2' },
   errorTitle: { color: '#f87171', fontSize: 18, fontWeight: '700', marginBottom: 12 },
   errorBody: { color: '#a8b0c2', fontSize: 12, fontFamily: 'monospace', textAlign: 'center' },

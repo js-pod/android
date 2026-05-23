@@ -8,6 +8,19 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
+    <!-- Android 11+ package visibility: declare the browser intents we
+         launch so Linking.openURL can resolve a browser. -->
+    <queries>
+      <intent>
+        <action android:name="android.intent.action.VIEW" />
+        <data android:scheme="http" />
+      </intent>
+      <intent>
+        <action android:name="android.intent.action.VIEW" />
+        <data android:scheme="https" />
+      </intent>
+    </queries>
+
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"
