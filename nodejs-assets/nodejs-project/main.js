@@ -179,7 +179,11 @@ try {
     conneg: true,
     notifications: true,
     idp: true,
-    idpIssuer: `http://${HOST}:${port}`,
+    // Trailing slash is load-bearing: JSS forces a trailing slash on the
+    // discovery-doc issuer ("CTH compatibility") but emits the RFC 9207
+    // `iss` param as the raw issuer. A strict client (solid-oidc) compares
+    // them byte-for-byte, so they must match — pass the slash form here.
+    idpIssuer: `http://${HOST}:${port}/`,
     singleUser: true,
     singleUserPassword: 'me',
     git: false,
