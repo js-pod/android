@@ -3,6 +3,9 @@ name: build-apk
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -35,10 +38,20 @@ jobs:
         working-directory: android
         run: gradle --no-daemon assembleRelease
 
-      - name: Upload APK
+      - name: Upload APK (short-lived CI artifact)
         uses: actions/upload-artifact@v4
         with:
           name: solid-pod-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 3
+
+      - name: Publish APK to "latest" release (durable download)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk solid-pod.apk
+          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create latest solid-pod.apk \
+            --title 'Solid Pod — latest build' \
+            --notes 'Debug-signed APK for sideloading (not the Play Store). Built from main. Enable install-from-unknown-sources for your browser or file manager, then open the APK.'

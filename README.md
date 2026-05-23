@@ -50,17 +50,21 @@ cd android
 # android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Or just push — CI builds the APK and attaches it as a workflow artifact.
+Or trigger the **build-apk** workflow (Actions tab → Run workflow). It builds a
+release APK, attaches it to the rolling **[`latest` release](../../releases/latest)**,
+and also uploads a short-lived CI artifact.
 
 ## Install on your phone
 
-1. Download `solid-pod-debug-apk` from the latest workflow run on the [Actions tab](../../actions)
-2. Unzip → you'll have `app-debug.apk`
-3. Transfer to your phone (USB, Bluetooth, email to yourself, etc.)
-4. Open the APK in your phone's file manager → allow "install from this source" when prompted
-5. Launch **Solid Pod** from your app drawer
-6. Tap "Open in browser" when the status flips to running
-7. Sign in as `me` / `me` (localhost-only — change once you've decided what you want)
+**[⬇ Download the latest APK](https://github.com/js-pod/android/releases/latest/download/solid-pod.apk)**
+
+1. Open that link on your phone (or transfer the file over).
+2. Open the APK — allow "install from this source" when prompted (it's debug-signed for sideloading, not from the Play Store).
+3. Launch **Solid Pod** from your app drawer.
+4. Tap "Open in browser" when the status flips to running.
+5. Sign in as `me` / `me` (localhost-only — change once you've decided what you want).
+
+The download link is permanent and always points at the most recent build. Updates install over the top (the app is signed with a stable key), so your pod data is preserved.
 
 ## What you get
 
