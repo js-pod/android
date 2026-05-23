@@ -47,8 +47,10 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
-    androidResources {
-        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+    aaptOptions {
+        // AAPT defaults filter <dir>_* — keep underscore-prefixed dirs so
+        // oidc-provider's lib/helpers/_/ survives packaging.
+        ignoreAssetsPattern '!<dir>_*:!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
 }
 
