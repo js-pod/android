@@ -28,7 +28,9 @@ export default function App() {
         if (msg.type === 'ready') {
           setState({ kind: 'ready', url: msg.url, port: msg.port })
         } else if (msg.type === 'status') {
-          setState({ kind: 'status', message: msg.message })
+          // Only show pre-ready status — once the pod is up, late status
+          // messages (e.g. bootstrap progress) shouldn't clobber the URL.
+          setState((prev) => (prev.kind === 'ready' ? prev : { kind: 'status', message: msg.message }))
         } else if (msg.type === 'error') {
           setState({ kind: 'error', message: msg.message })
         }
