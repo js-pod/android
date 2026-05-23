@@ -10,7 +10,6 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import androidx.core.app.ServiceCompat
 
 class PodForegroundService : Service() {
 
@@ -33,11 +32,14 @@ class PodForegroundService : Service() {
             .setOngoing(true)
             .build()
 
-        val serviceType =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                NOTIFICATION_ID, notif,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-            else 0
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, notif, serviceType)
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notif)
+        }
         return START_STICKY
     }
 
