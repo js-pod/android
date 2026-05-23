@@ -4,7 +4,6 @@ apply plugin: "com.facebook.react"
 
 react {
     autolinkLibrariesWithApp()
-    bundleInDebug = true
 }
 
 def enableProguardInReleaseBuilds = false
