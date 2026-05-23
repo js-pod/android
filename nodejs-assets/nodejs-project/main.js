@@ -4,7 +4,8 @@
 
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
-import { dirname } from 'path'
+import { dirname, join, posix } from 'path'
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'fs'
 import { webcrypto } from 'crypto'
 import { createServer as createNetServer } from 'net'
 const rn_bridge = createRequire(import.meta.url)('rn-bridge')
@@ -77,6 +78,62 @@ async function findFreePort(start, host, max = 10) {
   return null
 }
 
+// First-run app bootstrap. JSS by itself doesn't ship any Solid apps,
+// so the pod has nothing the user can sign in *from*. Drop a minimal
+// set of solid-apps/* repos straight onto disk under public/apps/ —
+// JSS picks them up on next request. Fetched from jsDelivr (gh-pages)
+// so the install survives offline once seeded.
+const BOOTSTRAP_APPS = ['pilot', 'profile', 'home']
+
+async function seedAppsOnFirstRun(podRoot) {
+  const appsDir = join(podRoot, 'public', 'apps')
+  if (existsSync(appsDir) && readdirSync(appsDir).length > 0) {
+    send({ type: 'status', message: 'apps/ already populated, skipping bootstrap' })
+    return
+  }
+  mkdirSync(appsDir, { recursive: true })
+  send({ type: 'status', message: `bootstrap: installing ${BOOTSTRAP_APPS.join(', ')}...` })
+  for (const app of BOOTSTRAP_APPS) {
+    try {
+      await installApp(app, appsDir)
+      send({ type: 'status', message: `bootstrap: installed ${app}` })
+    } catch (err) {
+      send({ type: 'status', message: `bootstrap: ${app} failed — ${err && err.message || err}` })
+    }
+  }
+  send({ type: 'status', message: 'bootstrap done' })
+}
+
+function flattenJsdelivrTree(nodes, prefix) {
+  const out = []
+  for (const node of nodes) {
+    const p = prefix ? prefix + '/' + node.name : node.name
+    if (node.type === 'file') out.push(p)
+    else if (node.type === 'directory') out.push(...flattenJsdelivrTree(node.files || [], p))
+  }
+  return out
+}
+
+async function installApp(name, appsDir) {
+  const treeUrl = `https://data.jsdelivr.com/v1/package/gh/solid-apps/${name}@gh-pages/tree`
+  const treeRes = await fetch(treeUrl)
+  if (!treeRes.ok) throw new Error(`tree ${treeRes.status} for ${name}`)
+  const tree = await treeRes.json()
+  const files = flattenJsdelivrTree(tree.files || [], '')
+  if (!files.length) throw new Error(`empty tree for ${name}`)
+  const appDir = join(appsDir, name)
+  mkdirSync(appDir, { recursive: true })
+  for (const file of files) {
+    const url = `https://cdn.jsdelivr.net/gh/solid-apps/${name}@gh-pages/${file}`
+    const dest = join(appDir, ...file.split(posix.sep))
+    mkdirSync(dirname(dest), { recursive: true })
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`${file} ${res.status}`)
+    const buf = Buffer.from(await res.arrayBuffer())
+    writeFileSync(dest, buf)
+  }
+}
+
 try {
   // nodejs-mobile starts with CWD='/' (read-only). Move to the writable
   // extracted project dir so JSS's ./pod-data lands somewhere we can write.
@@ -110,6 +167,13 @@ try {
     type: 'ready',
     port,
     url: `http://${HOST}:${port}/`,
+  })
+
+  // Best-effort first-run app install — runs after the pod is already
+  // serving so the UI flips to "ready" right away. Any error here gets
+  // surfaced as a status message but doesn't take down the pod.
+  seedAppsOnFirstRun(join(process.cwd(), 'pod-data')).catch((err) => {
+    send({ type: 'status', message: 'bootstrap failed: ' + String(err && err.stack || err) })
   })
 } catch (err) {
   send({ type: 'error', message: String(err && err.stack || err) })
