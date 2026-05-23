@@ -6,7 +6,7 @@
   "main": "main.js",
   "description": "The Node-side payload that runs inside nodejs-mobile. Boots a JSS pod and (on first run) installs the default bundle. Mirrors what `npx jspod` does on desktop.",
   "dependencies": {
-    "jspod": "^0.0.42"
+    "javascript-solid-server": "^0.0.196"
   },
   "license": "AGPL-3.0-only"
 }

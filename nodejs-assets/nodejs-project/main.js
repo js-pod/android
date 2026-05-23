@@ -1,19 +1,14 @@
 // Entry point for nodejs-mobile inside the Android app.
-// nodejs-mobile-react-native extracts this folder to internal storage on first
-// run and executes this file in an embedded Node.js runtime. We then start a
-// JSS pod (via the jspod CLI's library entry) and post status messages back to
-// the React Native UI over the IPC channel.
+// Boots JSS in-process (no `spawn jss` — Android can't fork a binary)
+// and reports status back to the React Native UI via rn-bridge.
 
-// rn-bridge is injected by nodejs-mobile as a built-in CommonJS module; ESM's
-// loader can't resolve it, so reach for createRequire.
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
 const rn_bridge = createRequire(import.meta.url)('rn-bridge')
 
-// Default port. The RN UI reads this and displays it.
-const PORT = process.env.JSPOD_PORT || '5444'
-process.env.JSPOD_PORT = PORT
+const PORT = parseInt(process.env.JSPOD_PORT || '5444', 10)
+const HOST = process.env.JSPOD_HOST || 'localhost'
 
 function send(obj) {
   try { rn_bridge.channel.send(JSON.stringify(obj)) } catch {}
@@ -27,42 +22,49 @@ process.on('unhandledRejection', (reason) => {
 })
 
 try {
-  // nodejs-mobile starts with CWD='/' (read-only). jspod creates ./pod-data
-  // relative to CWD, so move to the writable extracted project dir.
+  // nodejs-mobile starts with CWD='/' (read-only). Move to the writable
+  // extracted project dir so JSS's ./pod-data lands somewhere we can write.
   const projectDir = dirname(fileURLToPath(import.meta.url))
-  send({ type: 'status', message: 'chdir ' + projectDir })
   process.chdir(projectDir)
+  send({ type: 'status', message: 'cwd=' + process.cwd() })
 
-  process.env.JSPOD_NO_OPEN = '1'
-  send({ type: 'status', message: 'starting pod (cwd=' + process.cwd() + ')' })
+  send({ type: 'status', message: 'loading javascript-solid-server...' })
+  const { createServer } = await import('javascript-solid-server/src/server.js')
 
-  // Construct argv as if `npx jspod --port 5444 --no-open` was invoked.
-  process.argv = [process.argv[0] || 'node', 'jspod', '--port', PORT, '--no-open']
+  send({ type: 'status', message: 'creating server...' })
+  const server = createServer({
+    root: './pod-data',
+    conneg: true,
+    notifications: true,
+    idp: true,
+    singleUser: true,
+    singleUserPassword: 'me',
+    git: false,                      // git http backend off for first run
+  })
 
-  // Dynamic import so we can catch failure at boot. jspod is ESM.
-  await import('jspod')
+  send({ type: 'status', message: 'listening on ' + HOST + ':' + PORT + '...' })
+  await server.listen({ port: PORT, host: HOST })
 
   send({
     type: 'ready',
     port: PORT,
-    url: `http://localhost:${PORT}/`
+    url: `http://${HOST}:${PORT}/`,
   })
 } catch (err) {
   send({ type: 'error', message: String(err && err.stack || err) })
 }
 
-// Optional: listen for control messages from RN (stop, status check, etc.)
 rn_bridge.channel.on('message', (msg) => {
   try {
     const parsed = JSON.parse(msg)
     if (parsed.type === 'ping') {
-      rn_bridge.channel.send(JSON.stringify({ type: 'pong', port: PORT }))
+      send({ type: 'pong', port: PORT })
     }
   } catch {
-    // ignore non-JSON messages
+    // ignore non-JSON
   }
 })
 
-// Keep the process alive — jspod's HTTP server holds it, but if it crashed we
-// still want this script to stay resident so the RN side gets the error.
+// Keep the script resident even if startup failed, so the UI sees the
+// last error and rn-bridge stays connected.
 setInterval(() => {}, 1 << 30)
