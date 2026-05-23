@@ -7,7 +7,7 @@
     "android": "react-native run-android",
     "start": "react-native start",
     "lint": "eslint .",
-    "prepare-node-assets": "cd nodejs-assets/nodejs-project && npm install --omit=dev"
+    "prepare-node-assets": "cd nodejs-assets/nodejs-project && npm install --omit=dev && cd ../.. && node scripts/patch-android-assets.js"
   },
   "dependencies": {
     "react": "18.3.1",
