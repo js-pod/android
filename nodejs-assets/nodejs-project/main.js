@@ -4,7 +4,10 @@
 // JSS pod (via the jspod CLI's library entry) and post status messages back to
 // the React Native UI over the IPC channel.
 
-import rn_bridge from 'rn-bridge'
+// rn-bridge is injected by nodejs-mobile as a built-in CommonJS module; ESM's
+// loader can't resolve it, so reach for createRequire.
+import { createRequire } from 'module'
+const rn_bridge = createRequire(import.meta.url)('rn-bridge')
 
 // Tell jspod not to try to open a browser — there's no `xdg-open` here, and
 // the RN UI handles opening the system browser via Intent.
