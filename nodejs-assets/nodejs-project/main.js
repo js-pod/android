@@ -6,7 +6,7 @@ import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import { dirname, join, posix } from 'path'
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'fs'
-import { webcrypto } from 'crypto'
+import nodeCrypto, { webcrypto } from 'crypto'
 import { createServer as createNetServer } from 'net'
 const rn_bridge = createRequire(import.meta.url)('rn-bridge')
 
@@ -14,6 +14,16 @@ const rn_bridge = createRequire(import.meta.url)('rn-bridge')
 // jose uses it for key generation. Wire it up from node:crypto.
 if (typeof globalThis.crypto === 'undefined') {
   globalThis.crypto = webcrypto
+}
+
+// crypto.hash() one-shot helper is Node 21.7+/22. oidc-provider's
+// client model calls it; nodejs-mobile's Node 18 lacks it. Patch the
+// shared node:crypto module object so every importer sees it.
+if (typeof nodeCrypto.hash !== 'function') {
+  nodeCrypto.hash = function (algorithm, data, outputEncoding = 'hex') {
+    const h = nodeCrypto.createHash(algorithm).update(data)
+    return outputEncoding === 'buffer' ? h.digest() : h.digest(outputEncoding)
+  }
 }
 
 // URL.parse() is a static method added in Node 22.1. Older Node (which
