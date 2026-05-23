@@ -14,6 +14,19 @@ if (typeof globalThis.crypto === 'undefined') {
   globalThis.crypto = webcrypto
 }
 
+// URL.parse() is a static method added in Node 22.1. Older Node (which
+// nodejs-mobile bundles) throws "is not a function". oidc-provider uses
+// it as a non-throwing parser. Polyfill with a try/new URL fallback.
+if (typeof URL.parse !== 'function') {
+  URL.parse = function (input, base) {
+    try {
+      return base != null ? new URL(input, base) : new URL(input)
+    } catch {
+      return null
+    }
+  }
+}
+
 // nodejs-mobile is built without ICU, so Intl is undefined. oidc-provider
 // (and other deps) reference Intl.ListFormat at module load time, which
 // crashes the whole bundle. Stub the surface area we actually need.
