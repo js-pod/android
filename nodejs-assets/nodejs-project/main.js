@@ -29,6 +29,26 @@ if (typeof URL.parse !== 'function') {
   }
 }
 
+// ES2023 change-array-by-copy methods. nodejs-mobile's Node 18 lacks
+// them; JSS's IdP uses Array#toReversed (idp/index.js), so OIDC client
+// registration 500s without these. Polyfill the family.
+function definePoly(proto, name, fn) {
+  if (typeof proto[name] !== 'function') {
+    Object.defineProperty(proto, name, { value: fn, writable: true, configurable: true })
+  }
+}
+definePoly(Array.prototype, 'toReversed', function () {
+  return Array.prototype.slice.call(this).reverse()
+})
+definePoly(Array.prototype, 'toSorted', function (cmp) {
+  return Array.prototype.slice.call(this).sort(cmp)
+})
+definePoly(Array.prototype, 'with', function (i, value) {
+  const copy = Array.prototype.slice.call(this)
+  copy[i < 0 ? copy.length + i : i] = value
+  return copy
+})
+
 // nodejs-mobile is built without ICU, so Intl is undefined. oidc-provider
 // (and other deps) reference Intl.ListFormat at module load time, which
 // crashes the whole bundle. Stub the surface area we actually need.
