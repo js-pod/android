@@ -6,6 +6,7 @@ import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
 import { webcrypto } from 'crypto'
+import { createServer as createNetServer } from 'net'
 const rn_bridge = createRequire(import.meta.url)('rn-bridge')
 
 // nodejs-mobile doesn't expose globalThis.crypto (Web Crypto API).
@@ -63,12 +64,29 @@ process.on('unhandledRejection', (reason) => {
   send({ type: 'error', message: 'unhandled rejection: ' + String(reason && reason.stack || reason) })
 })
 
+async function findFreePort(start, host, max = 10) {
+  for (let p = start; p < start + max; p++) {
+    const free = await new Promise((resolve) => {
+      const srv = createNetServer()
+      srv.once('error', () => resolve(false))
+      srv.once('listening', () => srv.close(() => resolve(true)))
+      srv.listen(p, host)
+    })
+    if (free) return p
+  }
+  return null
+}
+
 try {
   // nodejs-mobile starts with CWD='/' (read-only). Move to the writable
   // extracted project dir so JSS's ./pod-data lands somewhere we can write.
   const projectDir = dirname(fileURLToPath(import.meta.url))
   process.chdir(projectDir)
   send({ type: 'status', message: 'cwd=' + process.cwd() })
+
+  const port = await findFreePort(PORT, HOST)
+  if (port === null) throw new Error(`no free port in ${PORT}..${PORT + 9} on ${HOST}`)
+  if (port !== PORT) send({ type: 'status', message: `port ${PORT} in use, using ${port}` })
 
   send({ type: 'status', message: 'loading javascript-solid-server...' })
   const { createServer } = await import('javascript-solid-server/src/server.js')
@@ -79,19 +97,19 @@ try {
     conneg: true,
     notifications: true,
     idp: true,
-    idpIssuer: `http://${HOST}:${PORT}`,
+    idpIssuer: `http://${HOST}:${port}`,
     singleUser: true,
     singleUserPassword: 'me',
-    git: false,                      // git http backend off for first run
+    git: false,
   })
 
-  send({ type: 'status', message: 'listening on ' + HOST + ':' + PORT + '...' })
-  await server.listen({ port: PORT, host: HOST })
+  send({ type: 'status', message: `listening on ${HOST}:${port}...` })
+  await server.listen({ port, host: HOST })
 
   send({
     type: 'ready',
-    port: PORT,
-    url: `http://${HOST}:${PORT}/`,
+    port,
+    url: `http://${HOST}:${port}/`,
   })
 } catch (err) {
   send({ type: 'error', message: String(err && err.stack || err) })
