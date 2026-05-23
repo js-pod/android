@@ -7,7 +7,14 @@
 // rn-bridge is injected by nodejs-mobile as a built-in CommonJS module; ESM's
 // loader can't resolve it, so reach for createRequire.
 import { createRequire } from 'module'
+import { fileURLToPath } from 'url'
+import { dirname } from 'path'
 const rn_bridge = createRequire(import.meta.url)('rn-bridge')
+
+// nodejs-mobile starts with CWD='/' which is read-only on Android. jspod
+// creates ./pod-data relative to CWD, so move to the writable extracted
+// project dir before booting.
+process.chdir(dirname(fileURLToPath(import.meta.url)))
 
 // Tell jspod not to try to open a browser — there's no `xdg-open` here, and
 // the RN UI handles opening the system browser via Intent.
