@@ -59,6 +59,7 @@ try {
     conneg: true,
     notifications: true,
     idp: true,
+    idpIssuer: `http://${HOST}:${PORT}`,
     singleUser: true,
     singleUserPassword: 'me',
     git: false,                      // git http backend off for first run
