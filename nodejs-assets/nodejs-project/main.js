@@ -6,7 +6,7 @@ import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import { dirname, join, posix } from 'path'
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'fs'
-import nodeCrypto, { webcrypto } from 'crypto'
+import { webcrypto } from 'crypto'
 import { createServer as createNetServer } from 'net'
 const rn_bridge = createRequire(import.meta.url)('rn-bridge')
 
@@ -16,15 +16,10 @@ if (typeof globalThis.crypto === 'undefined') {
   globalThis.crypto = webcrypto
 }
 
-// crypto.hash() one-shot helper is Node 21.7+/22. oidc-provider's
-// client model calls it; nodejs-mobile's Node 18 lacks it. Patch the
-// shared node:crypto module object so every importer sees it.
-if (typeof nodeCrypto.hash !== 'function') {
-  nodeCrypto.hash = function (algorithm, data, outputEncoding = 'hex') {
-    const h = nodeCrypto.createHash(algorithm).update(data)
-    return outputEncoding === 'buffer' ? h.digest() : h.digest(outputEncoding)
-  }
-}
+// NOTE: crypto.hash() (Node 21.7+) is also missing, but oidc-provider
+// imports it via `import * as crypto` (an immutable namespace), so a
+// runtime polyfill here can't reach it. It's rewritten at the call
+// sites by scripts/patch-android-assets.js instead.
 
 // URL.parse() is a static method added in Node 22.1. Older Node (which
 // nodejs-mobile bundles) throws "is not a function". oidc-provider uses

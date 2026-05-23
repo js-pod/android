@@ -154,3 +154,49 @@ if (fs.existsSync(ROOT)) {
   const n = walkForRegexPatches(ROOT);
   console.log(`patch-android-assets: rewrote Unicode property escapes in ${n} file(s)`);
 }
+
+// --- (3) crypto.hash() — Node 21.7+ one-shot helper ---
+//
+// oidc-provider calls crypto.hash() in several files via
+// `import * as crypto from 'node:crypto'`. That namespace is immutable
+// and snapshots named exports at load, so a runtime polyfill can't add
+// `hash`. nodejs-mobile's Node 18 doesn't have it, so we rewrite the
+// call sites to use createHash + digest, which Node 18 does have.
+const CRYPTO_HASH_HELPER =
+  "\nfunction __jssCryptoHash(a, d, e) { const h = crypto.createHash(a).update(d); return e === 'buffer' ? h.digest() : h.digest(e === undefined ? 'hex' : e); }\n";
+
+function patchCryptoHashInFile(file) {
+  let src;
+  try { src = fs.readFileSync(file, 'utf8'); } catch { return false; }
+  if (!src.includes('crypto.hash(')) return false;
+  // Only safe where `crypto` is the node:crypto namespace (so the helper's
+  // crypto.createHash resolves to the same binding).
+  if (!/import \* as crypto from ['"]node:crypto['"]/.test(src)) return false;
+  let out = src.replace(
+    /(import \* as crypto from ['"]node:crypto['"];?)/,
+    `$1${CRYPTO_HASH_HELPER}`
+  );
+  // crypto.hash( -> __jssCryptoHash( . The helper uses crypto.createHash(,
+  // which does not contain the substring crypto.hash(, so it's untouched.
+  out = out.split('crypto.hash(').join('__jssCryptoHash(');
+  if (out === src) return false;
+  fs.writeFileSync(file, out);
+  return true;
+}
+
+function walkForCryptoHash(dir) {
+  let count = 0;
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.name === '.bin') continue;
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) { count += walkForCryptoHash(p); continue; }
+    if (!/\.(js|mjs|cjs)$/.test(e.name)) continue;
+    if (patchCryptoHashInFile(p)) count++;
+  }
+  return count;
+}
+
+if (fs.existsSync(ROOT)) {
+  const n = walkForCryptoHash(ROOT);
+  console.log(`patch-android-assets: rewrote crypto.hash() in ${n} file(s)`);
+}
