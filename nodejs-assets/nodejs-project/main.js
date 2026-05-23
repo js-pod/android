@@ -160,11 +160,19 @@ async function installApp(name, appsDir) {
 }
 
 try {
-  // nodejs-mobile starts with CWD='/' (read-only). Move to the writable
-  // extracted project dir so JSS's ./pod-data lands somewhere we can write.
+  // nodejs-mobile starts with CWD='/' (read-only); chdir into the writable
+  // extracted project dir for any relative path use.
   const projectDir = dirname(fileURLToPath(import.meta.url))
   process.chdir(projectDir)
-  send({ type: 'status', message: 'cwd=' + process.cwd() })
+
+  // Pod data must live OUTSIDE the extracted project dir: nodejs-mobile
+  // re-extracts nodejs-project/ on app update, which would wipe a pod-data
+  // nested inside it. A sibling under the app's files dir
+  // (files/pod-data) is managed by us, not nodejs-mobile, so it survives
+  // updates. Absolute path so it's independent of cwd.
+  const dataDir = join(projectDir, '..', 'pod-data')
+  mkdirSync(dataDir, { recursive: true })
+  send({ type: 'status', message: 'data=' + dataDir })
 
   const port = await findFreePort(PORT, HOST)
   if (port === null) throw new Error(`no free port in ${PORT}..${PORT + 9} on ${HOST}`)
@@ -175,7 +183,7 @@ try {
 
   send({ type: 'status', message: 'creating server...' })
   const server = createServer({
-    root: './pod-data',
+    root: dataDir,
     conneg: true,
     notifications: true,
     idp: true,
@@ -201,7 +209,7 @@ try {
   // Best-effort first-run app install — runs after the pod is already
   // serving so the UI flips to "ready" right away. Any error here gets
   // surfaced as a status message but doesn't take down the pod.
-  seedAppsOnFirstRun(join(process.cwd(), 'pod-data')).catch((err) => {
+  seedAppsOnFirstRun(dataDir).catch((err) => {
     send({ type: 'status', message: 'bootstrap failed: ' + String(err && err.stack || err) })
   })
 } catch (err) {
