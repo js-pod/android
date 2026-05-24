@@ -5,7 +5,7 @@
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import { dirname, join, posix } from 'path'
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { webcrypto } from 'crypto'
 import { createServer as createNetServer } from 'net'
 const rn_bridge = createRequire(import.meta.url)('rn-bridge')
@@ -112,13 +112,13 @@ const BOOTSTRAP_APPS = ['pilot', 'profile', 'home', 'hub', 'chrome']
 
 async function seedAppsOnFirstRun(podRoot) {
   const appsDir = join(podRoot, 'public', 'apps')
-  if (existsSync(appsDir) && readdirSync(appsDir).length > 0) {
-    send({ type: 'status', message: 'apps/ already populated, skipping bootstrap' })
-    return
-  }
   mkdirSync(appsDir, { recursive: true })
-  send({ type: 'status', message: `bootstrap: installing ${BOOTSTRAP_APPS.join(', ')}...` })
+  // Per-app + idempotent: (re)install any curated app whose index.html is
+  // missing. An app left empty/partial by a transient CDN failure last time
+  // self-heals on the next launch instead of being skipped forever (which is
+  // what broke chrome — one 502 on a src/ file aborted its whole install).
   for (const app of BOOTSTRAP_APPS) {
+    if (existsSync(join(appsDir, app, 'index.html'))) continue
     try {
       await installApp(app, appsDir)
       send({ type: 'status', message: `bootstrap: installed ${app}` })
@@ -126,7 +126,22 @@ async function seedAppsOnFirstRun(podRoot) {
       send({ type: 'status', message: `bootstrap: ${app} failed — ${err && err.message || err}` })
     }
   }
-  send({ type: 'status', message: 'bootstrap done' })
+}
+
+// fetch with retries + backoff — jsDelivr/CDN occasionally returns transient
+// 5xx or times out on individual files; one such blip used to abort an app's
+// whole install. Retry before giving up.
+async function fetchRetry(url, tries = 4) {
+  let last
+  for (let i = 0; i < tries; i++) {
+    try {
+      const res = await fetch(url)
+      if (res.ok) return res
+      last = new Error(`HTTP ${res.status}`)
+    } catch (e) { last = e }
+    if (i < tries - 1) await new Promise((r) => setTimeout(r, 600 * (i + 1)))
+  }
+  throw last || new Error('fetch failed: ' + url)
 }
 
 function flattenJsdelivrTree(nodes, prefix) {
@@ -151,8 +166,7 @@ async function listAppFiles(name) {
       if (files.length) return files
     }
   } catch { /* fall through to GitHub */ }
-  const r = await fetch(`https://api.github.com/repos/solid-apps/${name}/git/trees/gh-pages?recursive=1`)
-  if (!r.ok) throw new Error(`file list unavailable for ${name} (github ${r.status})`)
+  const r = await fetchRetry(`https://api.github.com/repos/solid-apps/${name}/git/trees/gh-pages?recursive=1`)
   const files = ((await r.json()).tree || []).filter((t) => t.type === 'blob').map((t) => t.path)
   if (!files.length) throw new Error(`empty file list for ${name}`)
   return files
@@ -166,8 +180,7 @@ async function installApp(name, appsDir) {
     const url = `https://cdn.jsdelivr.net/gh/solid-apps/${name}@gh-pages/${file}`
     const dest = join(appDir, ...file.split(posix.sep))
     mkdirSync(dirname(dest), { recursive: true })
-    const res = await fetch(url)
-    if (!res.ok) throw new Error(`${file} ${res.status}`)
+    const res = await fetchRetry(url)
     const buf = Buffer.from(await res.arrayBuffer())
     writeFileSync(dest, buf)
   }
