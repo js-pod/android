@@ -159,6 +159,46 @@ async function installApp(name, appsDir) {
   }
 }
 
+// INTERIM (remove once this app boots via jspod.start({ inProcess: true }) —
+// JavaScriptSolidServer/jspod#58 / PR #59): copy jspod's onboarding pages into
+// the pod root, mirroring jspod's seedPodFiles(), so the home + sign-in screens
+// match jspod instead of JSS's bare defaults. Fetched from jsDelivr (npm). This
+// duplicates jspod's seeding on purpose; delete it when jspod does it for us.
+const JSPOD_PAGES_VERSION = '0.0.42'
+const JSPOD_PAGES = [
+  // [file in jspod package, dest under pod root, overwrite-if-exists]
+  ['welcome.html', 'index.html', true],
+  ['signin.html', 'signin.html', true],
+  ['signin.html.acl', 'signin.html.acl', true],
+  ['account.html', 'account.html', true],
+  ['account.html.acl', 'account.html.acl', true],
+  ['docs.html', 'docs.html', true],
+  ['docs.html.acl', 'docs.html.acl', true],
+  ['links.jsonld', 'public/links.jsonld', false]
+]
+
+async function seedPodPagesOnFirstRun(podRoot) {
+  const marker = join(podRoot, '.jspod-pages-seeded')
+  if (existsSync(marker)) return
+  send({ type: 'status', message: 'bootstrap: seeding jspod onboarding pages...' })
+  let any = false
+  for (const [remote, destRel, overwrite] of JSPOD_PAGES) {
+    try {
+      const dest = join(podRoot, ...destRel.split('/'))
+      if (!overwrite && existsSync(dest)) continue
+      const res = await fetch(`https://cdn.jsdelivr.net/npm/jspod@${JSPOD_PAGES_VERSION}/${remote}`)
+      if (!res.ok) continue
+      mkdirSync(dirname(dest), { recursive: true })
+      writeFileSync(dest, Buffer.from(await res.arrayBuffer()))
+      any = true
+    } catch { /* best-effort; offline first-run keeps JSS's bare pages */ }
+  }
+  if (any) {
+    try { writeFileSync(marker, new Date().toISOString()) } catch {}
+    send({ type: 'status', message: 'bootstrap: jspod onboarding pages seeded' })
+  }
+}
+
 try {
   // nodejs-mobile starts with CWD='/' (read-only); chdir into the writable
   // extracted project dir for any relative path use.
@@ -209,9 +249,14 @@ try {
   // Best-effort first-run app install — runs after the pod is already
   // serving so the UI flips to "ready" right away. Any error here gets
   // surfaced as a status message but doesn't take down the pod.
-  seedAppsOnFirstRun(dataDir).catch((err) => {
-    send({ type: 'status', message: 'bootstrap failed: ' + String(err && err.stack || err) })
-  })
+  ;(async () => {
+    try { await seedPodPagesOnFirstRun(dataDir) } catch {}
+    try {
+      await seedAppsOnFirstRun(dataDir)
+    } catch (err) {
+      send({ type: 'status', message: 'bootstrap failed: ' + String(err && err.stack || err) })
+    }
+  })()
 } catch (err) {
   send({ type: 'error', message: String(err && err.stack || err) })
 }
