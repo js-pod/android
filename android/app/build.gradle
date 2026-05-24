@@ -21,6 +21,12 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "0.0.1"
+        // Ship arm64-v8a only. The bulk of the APK is libnode.so (~50MB)
+        // duplicated per ABI; every modern phone is arm64. Drops x86/
+        // x86_64 (emulators) and armeabi-v7a (legacy 32-bit). ~205MB -> ~70MB.
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
     }
     signingConfigs {
         debug {
