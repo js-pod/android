@@ -108,7 +108,7 @@ async function findFreePort(start, host, max = 10) {
 // set of solid-apps/* repos straight onto disk under public/apps/ —
 // JSS picks them up on next request. Fetched from jsDelivr (gh-pages)
 // so the install survives offline once seeded.
-const BOOTSTRAP_APPS = ['pilot', 'profile', 'home', 'hub', 'chrome', 'explorer', 'settings']
+const BOOTSTRAP_APPS = ['pilot', 'profile', 'home', 'hub', 'chrome', 'explorer', 'contacts', 'settings']
 
 async function seedAppsOnFirstRun(podRoot) {
   const appsDir = join(podRoot, 'public', 'apps')
