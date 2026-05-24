@@ -108,7 +108,7 @@ async function findFreePort(start, host, max = 10) {
 // set of solid-apps/* repos straight onto disk under public/apps/ —
 // JSS picks them up on next request. Fetched from jsDelivr (gh-pages)
 // so the install survives offline once seeded.
-const BOOTSTRAP_APPS = ['pilot', 'profile', 'home']
+const BOOTSTRAP_APPS = ['pilot', 'profile', 'home', 'hub']
 
 async function seedAppsOnFirstRun(podRoot) {
   const appsDir = join(podRoot, 'public', 'apps')
@@ -139,13 +139,27 @@ function flattenJsdelivrTree(nodes, prefix) {
   return out
 }
 
+// List an app's files. Primary: jsDelivr's tree API. Fallback: GitHub's
+// git-trees API — jsDelivr's tree endpoint 500s for some repos (e.g. hub,
+// with its nested src/ + directory/ layout) even though individual file
+// fetches via the CDN still work.
+async function listAppFiles(name) {
+  try {
+    const r = await fetch(`https://data.jsdelivr.com/v1/package/gh/solid-apps/${name}@gh-pages/tree`)
+    if (r.ok) {
+      const files = flattenJsdelivrTree((await r.json()).files || [], '')
+      if (files.length) return files
+    }
+  } catch { /* fall through to GitHub */ }
+  const r = await fetch(`https://api.github.com/repos/solid-apps/${name}/git/trees/gh-pages?recursive=1`)
+  if (!r.ok) throw new Error(`file list unavailable for ${name} (github ${r.status})`)
+  const files = ((await r.json()).tree || []).filter((t) => t.type === 'blob').map((t) => t.path)
+  if (!files.length) throw new Error(`empty file list for ${name}`)
+  return files
+}
+
 async function installApp(name, appsDir) {
-  const treeUrl = `https://data.jsdelivr.com/v1/package/gh/solid-apps/${name}@gh-pages/tree`
-  const treeRes = await fetch(treeUrl)
-  if (!treeRes.ok) throw new Error(`tree ${treeRes.status} for ${name}`)
-  const tree = await treeRes.json()
-  const files = flattenJsdelivrTree(tree.files || [], '')
-  if (!files.length) throw new Error(`empty tree for ${name}`)
+  const files = await listAppFiles(name)
   const appDir = join(appsDir, name)
   mkdirSync(appDir, { recursive: true })
   for (const file of files) {
