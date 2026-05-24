@@ -139,7 +139,35 @@ async function findFreePort(start, host, max = 10) {
 // set of solid-apps/* repos straight onto disk under public/apps/ —
 // JSS picks them up on next request. Fetched from jsDelivr (gh-pages)
 // so the install survives offline once seeded.
-const BOOTSTRAP_APPS = ['pilot', 'profile', 'home', 'hub', 'chrome', 'explorer', 'contacts', 'settings']
+const BOOTSTRAP_APPS = ['pilot', 'profile', 'home', 'hub', 'chrome', 'explorer', 'contacts', 'playlist', 'settings']
+
+// A small curated playlist so the playlist app has a pod-hosted m3u to open
+// and edit out of the box. Open it at:
+//   /public/apps/playlist/?uri=../../playlists/starter.m3u
+const STARTER_M3U = `#EXTM3U
+#PLAYLIST:Starter
+#EXTINF:-1,Kings Of Leon - Closer
+https://www.youtube.com/watch?v=K-5mcoaPc_U
+#EXTINF:-1,Dua Lipa - New Rules (Official Music Video)
+https://www.youtube.com/watch?v=k2qgadSvNyU
+#EXTINF:-1,Lana Del Rey - High By The Beach
+https://www.youtube.com/watch?v=QnxpHIl5Ynw
+#EXTINF:-1,Caravan Palace - Lone Digger (Official MV)
+https://www.youtube.com/watch?v=UbQgXeY_zi4
+#EXTINF:-1,RÜFÜS DU SOL - On My Knees (Official Music Video)
+https://www.youtube.com/watch?v=y7fudcFIlZs
+#EXTINF:-1,Tiësto - Lay Low (Official Music Video)
+https://www.youtube.com/watch?v=EfWmWlW2PvM
+`
+
+// Seed the starter playlist on first run. Idempotent: skip if it already
+// exists so the owner's later edits (saved back via the app) aren't clobbered.
+function seedPlaylistOnFirstRun(podRoot) {
+  const file = join(podRoot, 'public', 'playlists', 'starter.m3u')
+  if (existsSync(file)) return
+  mkdirSync(dirname(file), { recursive: true })
+  writeFileSync(file, STARTER_M3U)
+}
 
 async function seedAppsOnFirstRun(podRoot) {
   const appsDir = join(podRoot, 'public', 'apps')
@@ -322,6 +350,7 @@ try {
   // surfaced as a status message but doesn't take down the pod.
   ;(async () => {
     try { await seedPodPagesOnFirstRun(dataDir) } catch {}
+    try { seedPlaylistOnFirstRun(dataDir) } catch {}
     try {
       await seedAppsOnFirstRun(dataDir)
     } catch (err) {
