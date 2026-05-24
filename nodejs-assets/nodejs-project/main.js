@@ -120,9 +120,12 @@ async function seedAppsOnFirstRun(podRoot) {
   for (const app of BOOTSTRAP_APPS) {
     if (existsSync(join(appsDir, app, 'index.html'))) continue
     try {
+      console.log('[bootstrap] installing ' + app)
       await installApp(app, appsDir)
+      console.log('[bootstrap] installed ' + app)
       send({ type: 'status', message: `bootstrap: installed ${app}` })
     } catch (err) {
+      console.error('[bootstrap] ' + app + ' FAILED: ' + (err && err.stack || err))
       send({ type: 'status', message: `bootstrap: ${app} failed — ${err && err.message || err}` })
     }
   }
@@ -172,15 +175,25 @@ async function listAppFiles(name) {
   return files
 }
 
+// Fetch one app file. Try jsDelivr (fast, cached); fall back to raw
+// .githubusercontent.com, which serves immediately for any pushed commit —
+// no per-edge CDN warm-up or indexing lag (brand-new repos like settings).
+async function fetchAppFile(name, file) {
+  try {
+    return await fetchRetry(`https://cdn.jsdelivr.net/gh/solid-apps/${name}@gh-pages/${file}`, 3)
+  } catch (e) {
+    return await fetchRetry(`https://raw.githubusercontent.com/solid-apps/${name}/gh-pages/${file}`, 3)
+  }
+}
+
 async function installApp(name, appsDir) {
   const files = await listAppFiles(name)
   const appDir = join(appsDir, name)
   mkdirSync(appDir, { recursive: true })
   for (const file of files) {
-    const url = `https://cdn.jsdelivr.net/gh/solid-apps/${name}@gh-pages/${file}`
     const dest = join(appDir, ...file.split(posix.sep))
     mkdirSync(dirname(dest), { recursive: true })
-    const res = await fetchRetry(url)
+    const res = await fetchAppFile(name, file)
     const buf = Buffer.from(await res.arrayBuffer())
     writeFileSync(dest, buf)
   }
