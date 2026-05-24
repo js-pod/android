@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import {
   Linking,
+  NativeModules,
+  PermissionsAndroid,
   Pressable,
   SafeAreaView,
   StatusBar,
@@ -18,6 +20,8 @@ type PodState =
 
 export default function App() {
   const [state, setState] = useState<PodState>({ kind: 'booting' })
+  const [importMsg, setImportMsg] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
 
   useEffect(() => {
     nodejs.start('main.js')
@@ -31,6 +35,9 @@ export default function App() {
           // Only show pre-ready status — once the pod is up, late status
           // messages (e.g. bootstrap progress) shouldn't clobber the URL.
           setState((prev) => (prev.kind === 'ready' ? prev : { kind: 'status', message: msg.message }))
+        } else if (msg.type === 'import-result') {
+          setImporting(false)
+          setImportMsg(`Imported ${msg.count} contacts — open the contacts app to see them.`)
         } else if (msg.type === 'error') {
           setState({ kind: 'error', message: msg.message })
         }
@@ -54,6 +61,34 @@ export default function App() {
       await Linking.openURL(state.url)
     } catch (e) {
       setOpenError(`Couldn't open a browser. Visit ${state.url} manually.`)
+    }
+  }
+
+  const importContacts = async () => {
+    if (importing) return
+    setImportMsg(null)
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
+        {
+          title: 'Import contacts',
+          message: 'Allow your pod to read the address book so it can import your contacts.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Cancel',
+        },
+      )
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        setImportMsg('Contacts permission denied.')
+        return
+      }
+      setImporting(true)
+      setImportMsg('Reading address book…')
+      const contacts = await NativeModules.PodContacts.readContacts()
+      setImportMsg(`Importing ${contacts.length}…`)
+      nodejs.channel.send(JSON.stringify({ type: 'import-contacts', contacts }))
+    } catch (e: any) {
+      setImporting(false)
+      setImportMsg('Import failed: ' + String(e?.message || e))
     }
   }
 
@@ -83,6 +118,19 @@ export default function App() {
             >
               <Text style={styles.buttonText}>Open in browser</Text>
             </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={importing}
+              style={({ pressed }) => [
+                styles.buttonGhost,
+                pressed && styles.buttonPressed,
+                importing && styles.buttonDisabled,
+              ]}
+              onPress={importContacts}
+            >
+              <Text style={styles.buttonGhostText}>Import phone contacts</Text>
+            </Pressable>
+            {importMsg && <Text style={styles.importMsg}>{importMsg}</Text>}
             <Text style={styles.foot}>
               Sign in as <Text style={styles.mono}>me</Text> /{' '}
               <Text style={styles.mono}>me</Text>. Localhost-only.
@@ -116,7 +164,18 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   buttonPressed: { opacity: 0.85 },
+  buttonDisabled: { opacity: 0.5 },
   buttonText: { color: '#0b0d12', fontWeight: '700', fontSize: 16 },
+  buttonGhost: {
+    marginTop: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 26,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2a3140',
+  },
+  buttonGhostText: { color: '#a8b0c2', fontWeight: '600', fontSize: 15 },
+  importMsg: { color: '#7aa2f7', fontSize: 13, marginTop: 14, textAlign: 'center' },
   foot: { color: '#6b7280', fontSize: 12, marginTop: 32, textAlign: 'center' },
   openError: { color: '#f87171', fontSize: 13, marginTop: 16, textAlign: 'center' },
   mono: { fontFamily: 'monospace', color: '#a8b0c2' },

@@ -78,9 +78,40 @@ if (typeof globalThis.Intl === 'undefined') {
 
 const PORT = parseInt(process.env.JSPOD_PORT || '5444', 10)
 const HOST = process.env.JSPOD_HOST || 'localhost'
+// Same data root the in-process server uses (see the boot IIFE). Module-level
+// so the rn-bridge message handler can write into the pod without auth.
+const POD_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', 'pod-data')
 
 function send(obj) {
   try { rn_bridge.channel.send(JSON.stringify(obj)) } catch {}
+}
+
+// Write contacts read from the device address book (sent over the bridge by the
+// RN UI) straight to disk as vCard JSON-LD under public/contacts/. We are the
+// server process, so this needs no OIDC token; reads of /public are public, so
+// the contacts app lists them immediately. A stable android-<id> filename makes
+// re-import idempotent (updates rather than duplicates).
+function importContacts(contacts) {
+  const dir = join(POD_ROOT, 'public', 'contacts')
+  mkdirSync(dir, { recursive: true })
+  let n = 0
+  const list = Array.isArray(contacts) ? contacts : []
+  list.forEach((c, i) => {
+    const emails = (c.emails || []).filter(Boolean)
+    const tels = (c.tels || []).filter(Boolean)
+    const fn = (c.name || emails[0] || tels[0] || 'Unnamed').toString()
+    const id = ((c.id != null ? 'android-' + c.id : 'c-' + i).toString()
+      .replace(/[^a-zA-Z0-9-]/g, '-').slice(0, 60)) || ('c-' + i)
+    const doc = {
+      '@context': { vcard: 'http://www.w3.org/2006/vcard/ns#' },
+      '@type': 'vcard:Individual',
+      'vcard:fn': fn,
+      'vcard:hasEmail': emails,
+      'vcard:hasTelephone': tels
+    }
+    try { writeFileSync(join(dir, id + '.jsonld'), JSON.stringify(doc, null, 2)); n++ } catch {}
+  })
+  return n
 }
 
 process.on('uncaughtException', (err) => {
@@ -306,6 +337,10 @@ rn_bridge.channel.on('message', (msg) => {
     const parsed = JSON.parse(msg)
     if (parsed.type === 'ping') {
       send({ type: 'pong', port: PORT })
+    } else if (parsed.type === 'import-contacts') {
+      const count = importContacts(parsed.contacts)
+      console.log('[import] wrote ' + count + ' contacts')
+      send({ type: 'import-result', count })
     }
   } catch {
     // ignore non-JSON
