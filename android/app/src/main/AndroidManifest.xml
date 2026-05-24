@@ -7,6 +7,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <!-- Optional: read the device address book for one-tap contact import. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS"/>
 
     <!-- Android 11+ package visibility: declare the browser intents we
          launch so Linking.openURL can resolve a browser. -->
