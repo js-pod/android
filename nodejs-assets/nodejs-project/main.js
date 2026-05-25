@@ -143,7 +143,7 @@ const BOOTSTRAP_APPS = ['pilot', 'profile', 'home', 'hub', 'chrome', 'explorer',
 // Bump to force a one-time re-pull of all bootstrap apps on the next launch
 // after an APK update — our reliable channel for shipping app code updates
 // (only /public/apps/<app>/ code is overwritten; user data is untouched).
-const BOOTSTRAP_GENERATION = 2
+const BOOTSTRAP_GENERATION = 3
 
 // A small curated playlist so the playlist app has a pod-hosted m3u to open
 // and edit out of the box. Open it at:
