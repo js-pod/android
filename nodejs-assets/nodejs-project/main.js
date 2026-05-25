@@ -139,11 +139,11 @@ async function findFreePort(start, host, max = 10) {
 // set of solid-apps/* repos straight onto disk under public/apps/ —
 // JSS picks them up on next request. Fetched from jsDelivr (gh-pages)
 // so the install survives offline once seeded.
-const BOOTSTRAP_APPS = ['pilot', 'profile', 'home', 'hub', 'chrome', 'explorer', 'contacts', 'playlist', 'inbox', 'settings']
+const BOOTSTRAP_APPS = ['pilot', 'profile', 'home', 'hub', 'chrome', 'explorer', 'contacts', 'playlist', 'inbox', 'messages', 'settings']
 // Bump to force a one-time re-pull of all bootstrap apps on the next launch
 // after an APK update — our reliable channel for shipping app code updates
 // (only /public/apps/<app>/ code is overwritten; user data is untouched).
-const BOOTSTRAP_GENERATION = 3
+const BOOTSTRAP_GENERATION = 4
 
 // A small curated playlist so the playlist app has a pod-hosted m3u to open
 // and edit out of the box. Open it at:
