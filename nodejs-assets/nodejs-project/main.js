@@ -139,7 +139,7 @@ async function findFreePort(start, host, max = 10) {
 // set of solid-apps/* repos straight onto disk under public/apps/ —
 // JSS picks them up on next request. Fetched from jsDelivr (gh-pages)
 // so the install survives offline once seeded.
-const BOOTSTRAP_APPS = ['pilot', 'profile', 'home', 'hub', 'chrome', 'explorer', 'contacts', 'playlist', 'settings']
+const BOOTSTRAP_APPS = ['pilot', 'profile', 'home', 'hub', 'chrome', 'explorer', 'contacts', 'playlist', 'inbox', 'settings']
 
 // A small curated playlist so the playlist app has a pod-hosted m3u to open
 // and edit out of the box. Open it at:
@@ -167,6 +167,23 @@ function seedPlaylistOnFirstRun(podRoot) {
   if (existsSync(file)) return
   mkdirSync(dirname(file), { recursive: true })
   writeFileSync(file, STARTER_M3U)
+}
+
+// Drop a welcome note into the (already JSS-seeded, owner-only) inbox so the
+// inbox app shows something on first open and the read path is verifiable.
+// ActivityStreams as:Note — the same shape ActivityPub uses. Idempotent.
+function seedInboxWelcomeOnFirstRun(podRoot) {
+  const file = join(podRoot, 'inbox', 'welcome.jsonld')
+  if (existsSync(file)) return
+  mkdirSync(dirname(file), { recursive: true })
+  const note = {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    type: 'Note',
+    summary: 'Welcome to your inbox',
+    content: 'This is your Solid pod inbox. Notifications delivered here (Linked Data Notifications, in ActivityStreams) are private — only you can read them. Composing and replying arrive in a later version.',
+    published: new Date().toISOString()
+  }
+  writeFileSync(file, JSON.stringify(note, null, 2))
 }
 
 async function seedAppsOnFirstRun(podRoot) {
@@ -351,6 +368,7 @@ try {
   ;(async () => {
     try { await seedPodPagesOnFirstRun(dataDir) } catch {}
     try { seedPlaylistOnFirstRun(dataDir) } catch {}
+    try { seedInboxWelcomeOnFirstRun(dataDir) } catch {}
     try {
       await seedAppsOnFirstRun(dataDir)
     } catch (err) {
