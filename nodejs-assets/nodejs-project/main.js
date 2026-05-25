@@ -5,7 +5,7 @@
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import { dirname, join, posix } from 'path'
-import { existsSync, mkdirSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs'
 import { webcrypto } from 'crypto'
 import { createServer as createNetServer } from 'net'
 const rn_bridge = createRequire(import.meta.url)('rn-bridge')
@@ -140,6 +140,10 @@ async function findFreePort(start, host, max = 10) {
 // JSS picks them up on next request. Fetched from jsDelivr (gh-pages)
 // so the install survives offline once seeded.
 const BOOTSTRAP_APPS = ['pilot', 'profile', 'home', 'hub', 'chrome', 'explorer', 'contacts', 'playlist', 'inbox', 'settings']
+// Bump to force a one-time re-pull of all bootstrap apps on the next launch
+// after an APK update — our reliable channel for shipping app code updates
+// (only /public/apps/<app>/ code is overwritten; user data is untouched).
+const BOOTSTRAP_GENERATION = 2
 
 // A small curated playlist so the playlist app has a pod-hosted m3u to open
 // and edit out of the box. Open it at:
@@ -189,14 +193,18 @@ function seedInboxWelcomeOnFirstRun(podRoot) {
 async function seedAppsOnFirstRun(podRoot) {
   const appsDir = join(podRoot, 'public', 'apps')
   mkdirSync(appsDir, { recursive: true })
-  // Per-app + idempotent: (re)install any curated app whose index.html is
-  // missing. An app left empty/partial by a transient CDN failure last time
-  // self-heals on the next launch instead of being skipped forever (which is
-  // what broke chrome — one 502 on a src/ file aborted its whole install).
+  // Generation gate: when BOOTSTRAP_GENERATION is ahead of what's recorded on
+  // the pod, re-pull every app (ship updates). Otherwise per-app + idempotent:
+  // (re)install any app whose index.html is missing, so an app left empty by a
+  // transient failure self-heals next launch instead of being skipped forever.
+  const genFile = join(podRoot, '.bootstrap-generation')
+  let storedGen = 0
+  try { storedGen = parseInt(readFileSync(genFile, 'utf8'), 10) || 0 } catch { /* none yet */ }
+  const refresh = storedGen < BOOTSTRAP_GENERATION
   for (const app of BOOTSTRAP_APPS) {
-    if (existsSync(join(appsDir, app, 'index.html'))) continue
+    if (!refresh && existsSync(join(appsDir, app, 'index.html'))) continue
     try {
-      console.log('[bootstrap] installing ' + app)
+      console.log('[bootstrap] installing ' + app + (refresh ? ' (refresh)' : ''))
       await installApp(app, appsDir)
       console.log('[bootstrap] installed ' + app)
       send({ type: 'status', message: `bootstrap: installed ${app}` })
@@ -205,6 +213,7 @@ async function seedAppsOnFirstRun(podRoot) {
       send({ type: 'status', message: `bootstrap: ${app} failed — ${err && err.message || err}` })
     }
   }
+  try { writeFileSync(genFile, String(BOOTSTRAP_GENERATION)) } catch { /* best effort */ }
 }
 
 // fetch with retries + backoff — jsDelivr/CDN occasionally returns transient
@@ -255,10 +264,14 @@ async function listAppFiles(name) {
 // .githubusercontent.com, which serves immediately for any pushed commit —
 // no per-edge CDN warm-up or indexing lag (brand-new repos like settings).
 async function fetchAppFile(name, file) {
+  // raw.githubusercontent first: it always serves the current commit of the
+  // branch — no CDN branch-ref cache, no purge needed. jsDelivr is only a
+  // fallback (it serves stale @gh-pages files with a 200, which silently
+  // defeats freshness — so it must not be the primary source for updates).
   try {
-    return await fetchRetry(`https://cdn.jsdelivr.net/gh/solid-apps/${name}@gh-pages/${file}`, 3)
-  } catch (e) {
     return await fetchRetry(`https://raw.githubusercontent.com/solid-apps/${name}/gh-pages/${file}`, 3)
+  } catch (e) {
+    return await fetchRetry(`https://cdn.jsdelivr.net/gh/solid-apps/${name}@gh-pages/${file}`, 3)
   }
 }
 
