@@ -354,6 +354,10 @@ try {
   const server = createServer({
     root: dataDir,
     conneg: true,
+    // Serve jspod's lightweight folder data browser when a browser hits a
+    // container (otherwise containers render as raw JSON-LD). Mirrors jspod's
+    // `--mashlib-module`; version-pinned to match the seeded onboarding pages.
+    mashlibModule: `https://cdn.jsdelivr.net/npm/jspod@${JSPOD_PAGES_VERSION}/data-browser-folder.js`,
     notifications: true,
     idp: true,
     // Trailing slash is load-bearing: JSS forces a trailing slash on the
